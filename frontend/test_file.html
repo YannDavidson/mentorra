@@ -1,0 +1,334 @@
+\<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>Mentorra API Test Client (Session Memory + Preferred Mentor)</title>
+  <style>
+    body { font-family: Arial; padding: 20px; background: #f4f4f4; }
+    .row { display:flex; gap: 12px; align-items:center; flex-wrap: wrap; }
+    .card {
+      background: white;
+      padding: 15px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    }
+    textarea { width: 100%; height: 120px; }
+    input[type="text"] { padding: 8px; width: 460px; max-width: 100%; }
+    select { padding: 8px; }
+    button { padding: 8px 12px; margin-top: 8px; cursor: pointer; }
+    label { user-select: none; }
+    .pill {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: #eee;
+      margin-right: 6px;
+      margin-top: 6px;
+      font-size: 12px;
+    }
+    pre {
+      background: #111;
+      color: #0f0;
+      padding: 10px;
+      overflow-x: auto;
+      font-size: 12px;
+      border-radius: 8px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .small { font-size: 12px; color: #444; }
+    .grid { display:grid; grid-template-columns: 1fr; gap: 10px; }
+    @media (min-width: 900px){
+      .grid { grid-template-columns: 1fr 1fr; }
+    }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
+  </style>
+</head>
+<body>
+
+<h1>Mentorra Backend API Tester</h1>
+
+<div class="card">
+  <div class="row">
+    <div>
+      <div class="small">Base URL</div>
+      <input id="baseUrl" type="text" value="http://0.0.0.0:8080" />
+    </div>
+
+    <div>
+      <div class="small">Session ID (persisted)</div>
+      <div class="mono" id="sessionIdLabel">-</div>
+    </div>
+
+    <div>
+      <div class="small">Quick actions</div>
+      <button onclick="checkHealth()">Test /health</button>
+      <button onclick="resetSession()">Reset Session (new session_id)</button>
+    </div>
+  </div>
+
+  <div class="row" style="margin-top:10px;">
+    <div class="pill" id="pillPreferred">preferred_mentor: -</div>
+    <div class="pill" id="pillCurrent">current mentor_track: -</div>
+    <div class="pill" id="pillSwitched">switched_track: -</div>
+  </div>
+
+  <pre id="healthOutput"></pre>
+</div>
+
+<div class="grid">
+  <!-- MENTOR ASSIST -->
+  <div class="card">
+    <h2>Mentor Assist</h2>
+
+    <div class="small">
+      Backend remembers your mentor using <span class="mono">session_id</span>.
+      Try: <b>"switch to sophia"</b>, <b>"talk to adrian"</b>, etc.
+    </div>
+
+    <div class="small" style="margin-top:10px;">Active Mentor Track (optional override)</div>
+    <div class="row">
+      <select id="activeMentor">
+        <option value="">None (use session + router)</option>
+        <option value="Vincent Forge">Vincent Forge</option>
+        <option value="Katerina Catalyst">Katerina Catalyst</option>
+        <option value="Sophia Architect">Sophia Architect</option>
+        <option value="Adrian Insight">Adrian Insight</option>
+      </select>
+
+      <label class="small">
+        <input type="checkbox" id="setPreferred" />
+        Set returned mentor as my default (preferred)
+      </label>
+    </div>
+
+    <div class="small" style="margin-top:10px;">User Message</div>
+    <input id="userMessage" type="text" value="I am struggling with product-market fit." />
+
+    <div class="small" style="margin-top:10px;">Founder Profile (optional JSON)</div>
+    <textarea id="founderProfile">
+{
+  "industry": "AI SaaS",
+  "stage": "pre-seed",
+  "key_challenges": ["customer acquisition", "retention"]
+}
+    </textarea>
+
+    <div class="small" style="margin-top:10px;">Memory Context (optional)</div>
+    <textarea id="memoryContext" placeholder="Optional. Backend can store this for your session if you send it."></textarea>
+
+    <button onclick="callMentor()">POST /api/mentor-assist</button>
+
+    <h3>suggested_agents</h3>
+    <div id="suggestedAgents"></div>
+
+    <h3>reply</h3>
+    <pre id="mentorReply"></pre>
+
+    <h3>clarifying_question</h3>
+    <pre id="mentorClarify"></pre>
+
+    <h3>memory_update</h3>
+    <pre id="mentorMemory"></pre>
+
+    <h3>Raw JSON</h3>
+    <pre id="mentorOutput"></pre>
+  </div>
+
+  <!-- VOICE -->
+  <div class="card">
+    <h2>Voice</h2>
+
+    <h3>Text to Speech</h3>
+    <textarea id="ttsInput">Hello founder. Let’s build something impossible.</textarea>
+    <div class="row">
+      <button onclick="callTTS()">POST /api/voice/speak</button>
+      <div class="small">Streams audio/mpeg</div>
+    </div>
+    <audio id="audioPlayer" controls style="width:100%; margin-top:10px;"></audio>
+
+    <hr style="margin:20px 0;" />
+
+    <h3>Speech to Text</h3>
+    <input type="file" id="audioFile" />
+    <button onclick="callSTT()">POST /api/voice/transcribe</button>
+    <pre id="sttOutput"></pre>
+  </div>
+</div>
+
+<script>
+function getBaseUrl() {
+  return document.getElementById("baseUrl").value.trim().replace(/\/+$/, "");
+}
+
+function getOrCreateSessionId() {
+  let sid = localStorage.getItem("mentorra_session_id");
+  if (!sid) {
+    sid = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + "-" + Math.random());
+    localStorage.setItem("mentorra_session_id", sid);
+  }
+  return sid;
+}
+
+function setSessionIdLabel() {
+  const sid = getOrCreateSessionId();
+  document.getElementById("sessionIdLabel").textContent = sid;
+}
+
+function resetSession() {
+  // easiest way to "clear preferred mentor" on backend without adding endpoints:
+  // just create a new session_id
+  const sid = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + "-" + Math.random());
+  localStorage.setItem("mentorra_session_id", sid);
+
+  // reset UI pills
+  document.getElementById("pillPreferred").textContent = "preferred_mentor: -";
+  document.getElementById("pillCurrent").textContent = "current mentor_track: -";
+  document.getElementById("pillSwitched").textContent = "switched_track: -";
+
+  document.getElementById("mentorOutput").textContent = "";
+  document.getElementById("mentorReply").textContent = "";
+  document.getElementById("mentorClarify").textContent = "";
+  document.getElementById("mentorMemory").textContent = "";
+  document.getElementById("suggestedAgents").innerHTML = "";
+  setSessionIdLabel();
+  alert("New session_id generated. Backend memory will be fresh for this session.");
+}
+
+setSessionIdLabel();
+
+// HEALTH
+async function checkHealth() {
+  const res = await fetch(`${getBaseUrl()}/health`);
+  const data = await res.json();
+  document.getElementById("healthOutput").textContent = JSON.stringify(data, null, 2);
+}
+
+// MENTOR ASSIST
+async function callMentor() {
+  const baseUrl = getBaseUrl();
+  const session_id = getOrCreateSessionId();
+
+  const user_message = document.getElementById("userMessage").value;
+  const active_mentor_track = document.getElementById("activeMentor").value || null;
+  const set_preferred_mentor = document.getElementById("setPreferred").checked;
+
+  let founder_profile = null;
+  try {
+    const rawProfile = document.getElementById("founderProfile").value.trim();
+    founder_profile = rawProfile ? JSON.parse(rawProfile) : null;
+  } catch (e) {
+    alert("Founder Profile JSON is invalid.");
+    return;
+  }
+
+  const memory_context = document.getElementById("memoryContext").value || "";
+
+  const payload = {
+    session_id,
+    user_message,
+    founder_profile,
+    active_mentor_track,
+    memory_context,
+    set_preferred_mentor
+  };
+
+  try {
+    const res = await fetch(`${baseUrl}/api/mentor-assist`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    const data = await res.json();
+
+    // Raw JSON output
+    document.getElementById("mentorOutput").textContent = JSON.stringify(data, null, 2);
+
+    // Update pills
+    document.getElementById("pillPreferred").textContent = `preferred_mentor: ${data.preferred_mentor ?? "-"}`;
+    document.getElementById("pillCurrent").textContent = `current mentor_track: ${data.mentor_track ?? "-"}`;
+    document.getElementById("pillSwitched").textContent = `switched_track: ${data.switched_track ?? "-"}`;
+
+    // Response fields
+    document.getElementById("mentorReply").textContent = data.reply ?? "";
+    document.getElementById("mentorClarify").textContent = (data.clarifying_question ?? "null");
+    document.getElementById("mentorMemory").textContent = data.memory_update ?? "";
+
+    // suggested_agents pills
+    const container = document.getElementById("suggestedAgents");
+    container.innerHTML = "";
+    const list = Array.isArray(data.suggested_agents) ? data.suggested_agents : [];
+    if (list.length === 0) {
+      const el = document.createElement("div");
+      el.className = "pill";
+      el.textContent = "(empty) — UI should show all mentors";
+      container.appendChild(el);
+    } else {
+      list.forEach(id => {
+        const el = document.createElement("div");
+        el.className = "pill";
+        el.textContent = id;
+        container.appendChild(el);
+      });
+    }
+
+    // If user checked "set preferred", auto-uncheck after success so it behaves like a one-shot action
+    if (set_preferred_mentor) {
+      document.getElementById("setPreferred").checked = false;
+    }
+
+  } catch (err) {
+    document.getElementById("mentorOutput").textContent = String(err);
+  }
+}
+
+// TEXT TO SPEECH
+async function callTTS() {
+  const baseUrl = getBaseUrl();
+  const text = document.getElementById("ttsInput").value;
+
+  const res = await fetch(`${baseUrl}/api/voice/speak`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text })
+  });
+
+  if (!res.ok) {
+    const msg = await res.text();
+    alert("TTS error: " + msg);
+    return;
+  }
+
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  document.getElementById("audioPlayer").src = url;
+}
+
+// SPEECH TO TEXT
+async function callSTT() {
+  const baseUrl = getBaseUrl();
+  const fileInput = document.getElementById("audioFile");
+  const file = fileInput.files[0];
+
+  if (!file) {
+    alert("Please select an audio file.");
+    return;
+  }
+
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const res = await fetch(`${baseUrl}/api/voice/transcribe`, {
+    method: "POST",
+    body: formData
+  });
+
+  const data = await res.json();
+  document.getElementById("sttOutput").textContent = JSON.stringify(data, null, 2);
+}
+</script>
+
+</body>
+</html>

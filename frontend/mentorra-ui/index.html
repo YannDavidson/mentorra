@@ -713,13 +713,13 @@
       <section class="mentor-grid-wrap" aria-label="Mentor Boardroom">
         <div class="mentor-grid-head">
           <p class="mentor-grid-title">Choose mentors to join the boardroom</p>
-          <p class="mentor-grid-hint">Hover to flip • Tap on mobile • Click to select</p>
+          <p class="mentor-grid-hint">Hover to flip • Press Select Mentor to start chatting</p>
         </div>
 
         <!-- Visible mentors (first 4) -->
         <div class="mentor-grid" id="primaryGrid">
           <!-- Vincent -->
-          <div class="flip" tabindex="0" data-id="vincent_forge" data-name="Vincent Forge">
+          <div class="flip" tabindex="0" data-id="vincent_force" data-name="Vincent Forge">
             <div class="flip-inner">
               <div class="flip-face flip-front">
                 <img class="mentor-photo" src="https://mentorra.xyz/Mentors/vincent-forge.png" alt="Vincent Forge portrait" />
@@ -1168,6 +1168,28 @@
     updateUI();
   }
 
+  const CHAT_MENTOR_IDS = {
+    vincent_force: "vincent_forge",
+    vincent_forge: "vincent_forge",
+    katerina_catalyst: "katerina_catalyst",
+  };
+
+  function resolveChatMentorId(dataId) {
+    return CHAT_MENTOR_IDS[dataId] || null;
+  }
+
+  function goToMentorChat(flipEl) {
+    const dataId = flipEl.getAttribute("data-id");
+    const chatMentorId = resolveChatMentorId(dataId);
+
+    if (!chatMentorId) {
+      alert("This mentor is coming soon. Try Vincent Forge or Katerina Catalyst.");
+      return;
+    }
+
+    window.location.href = `mentor_chat.html?mentor=${encodeURIComponent(chatMentorId)}`;
+  }
+
   function bindMentorCards(scope) {
     const flips = (scope || document).querySelectorAll(".flip");
 
@@ -1175,18 +1197,12 @@
       if (flip.dataset.bound === "1") return;
       flip.dataset.bound = "1";
 
-      flip.addEventListener("click", (e) => {
-        const isBtn = e.target?.classList?.contains("select-btn");
-        if (isBtn || e.currentTarget.contains(e.target)) {
-          toggleMentor(flip);
-        }
-      });
-
-      flip.addEventListener("keydown", (e) => {
-        if (e.key === "Enter" || e.key === " ") {
+      flip.querySelectorAll(".select-btn").forEach(btn => {
+        btn.addEventListener("click", (e) => {
           e.preventDefault();
-          toggleMentor(flip);
-        }
+          e.stopPropagation();
+          goToMentorChat(flip);
+        });
       });
     });
   }

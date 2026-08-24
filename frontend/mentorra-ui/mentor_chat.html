@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mentorra — Mentor Chat</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:         #f4f4f4;
+      --card:       #ffffff;
+      --black:      #111111;
+      --off-black:  #222222;
+      --mid:        #555555;
+      --muted:      #888888;
+      --faint:      #aaaaaa;
+      --border:     #e0e0e0;
+      --border-dark:#333333;
+      --shadow:     0 2px 8px rgba(0,0,0,0.08);
+      --font-mono:  'Space Mono', monospace;
+      --font-body:  'DM Sans', sans-serif;
+    }
+
+    body {
+      font-family: var(--font-body);
+      background: var(--bg);
+      color: var(--black);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .chat-shell {
+      width: 100%;
+      max-width: 480px;
+      background: var(--card);
+      border-radius: 16px;
+      box-shadow: 0 4px 28px rgba(0,0,0,0.12);
+      border: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      height: 88vh;
+      max-height: 760px;
+      overflow: hidden;
+    }
+
+    .chat-header {
+      background: var(--black);
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+    .header-dot {
+      width: 9px; height: 9px; border-radius: 50%;
+      background: #fff;
+      flex-shrink: 0;
+      animation: blink 2.4s infinite;
+    }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.25} }
+    .header-label {
+      font-family: var(--font-mono); font-size: 12px;
+      color: #fff; letter-spacing: 0.05em; flex: 1;
+    }
+    .header-label .sep { opacity: 0.35; margin: 0 4px; }
+    .header-label .slug { opacity: 0.7; }
+    .mentor-selector {
+      background: transparent;
+      border: 1px solid var(--border-dark);
+      border-radius: 6px;
+      color: #fff;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      padding: 5px 8px;
+      cursor: pointer;
+      outline: none;
+      appearance: none;
+      -webkit-appearance: none;
+    }
+    .mentor-selector option { background: #111; color: #fff; }
+    .mentor-selector:focus { border-color: #666; }
+
+    .mentor-bar {
+      background: #fafafa;
+      border-bottom: 1px solid var(--border);
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+    .mentor-avatar {
+      width: 34px; height: 34px; border-radius: 50%;
+      background: var(--black);
+      display: flex; align-items: center; justify-content: center;
+      font-family: var(--font-mono); font-size: 10px; font-weight: 700;
+      color: #fff; flex-shrink: 0;
+    }
+    .mentor-name { font-size: 13px; font-weight: 600; color: var(--black); }
+    .mentor-role { font-size: 11px; color: var(--muted); font-family: var(--font-mono); }
+    .status-pill {
+      margin-left: auto;
+      font-family: var(--font-mono); font-size: 10px;
+      padding: 3px 9px; border-radius: 999px;
+      background: var(--black); color: #fff;
+      letter-spacing: 0.04em;
+    }
+    .status-pill.error { background: #991b1b; }
+
+    .messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      background: var(--bg);
+    }
+    .messages::-webkit-scrollbar { width: 4px; }
+    .messages::-webkit-scrollbar-thumb { background: #ccc; border-radius: 999px; }
+
+    .divider {
+      text-align: center;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--faint);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      margin: 2px 0;
+    }
+
+    .bubble-row { display: flex; align-items: flex-end; gap: 8px; }
+    .bubble-row.user { flex-direction: row-reverse; }
+
+    .bav {
+      width: 26px; height: 26px; border-radius: 50%;
+      background: var(--black);
+      display: flex; align-items: center; justify-content: center;
+      font-family: var(--font-mono); font-size: 9px; font-weight: 700;
+      color: #fff; flex-shrink: 0;
+    }
+
+    .bubble {
+      max-width: 76%;
+      padding: 10px 14px;
+      font-size: 14px;
+      line-height: 1.55;
+      border-radius: 16px;
+      white-space: pre-wrap;
+    }
+    .bubble.mentor {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-bottom-left-radius: 4px;
+      color: var(--black);
+      box-shadow: var(--shadow);
+    }
+    .bubble.user {
+      background: var(--black);
+      border-bottom-right-radius: 4px;
+      color: #fff;
+      font-family: var(--font-mono);
+      font-size: 13px;
+    }
+    .bubble.error {
+      background: #fef2f2;
+      border-color: #fecaca;
+      color: #991b1b;
+    }
+    .bubble-meta {
+      font-size: 10px; color: var(--faint);
+      margin-top: 4px; font-family: var(--font-mono);
+    }
+    .bubble-row.user .bubble-meta { text-align: right; }
+
+    .audio-pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      margin-top: 8px; padding: 4px 10px;
+      background: #f4f4f4; border: 1px solid var(--border);
+      border-radius: 999px; font-family: var(--font-mono);
+      font-size: 11px; color: var(--mid); cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .audio-pill:hover { background: var(--black); color: #fff; border-color: var(--black); }
+    .audio-pill:hover svg { fill: #fff; }
+    .audio-pill svg { width: 11px; height: 11px; fill: var(--mid); flex-shrink: 0; transition: fill 0.15s; }
+
+    .audio-bar {
+      display: inline-flex; align-items: center; gap: 2px; margin-left: 2px;
+    }
+    .audio-bar span {
+      display: block; width: 2px; background: currentColor;
+      border-radius: 999px; animation: bar 0.7s ease-in-out infinite alternate;
+    }
+    .audio-bar span:nth-child(1){height:4px;animation-delay:0s}
+    .audio-bar span:nth-child(2){height:8px;animation-delay:0.1s}
+    .audio-bar span:nth-child(3){height:13px;animation-delay:0.2s}
+    .audio-bar span:nth-child(4){height:8px;animation-delay:0.15s}
+    .audio-bar span:nth-child(5){height:4px;animation-delay:0.05s}
+    @keyframes bar { from{transform:scaleY(0.35)} to{transform:scaleY(1)} }
+
+    .typing-row { display: flex; align-items: flex-end; gap: 8px; }
+    .typing-bubble {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 16px; border-bottom-left-radius: 4px;
+      padding: 12px 14px; display: flex; gap: 5px; align-items: center;
+      box-shadow: var(--shadow);
+    }
+    .typing-bubble span {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: #ccc; animation: bounce 1s infinite;
+    }
+    .typing-bubble span:nth-child(2){animation-delay:0.2s}
+    .typing-bubble span:nth-child(3){animation-delay:0.4s}
+    @keyframes bounce{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-5px)}}
+
+    .input-area {
+      background: var(--card);
+      border-top: 1px solid var(--border);
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+    .input-area.disabled { opacity: 0.65; pointer-events: none; }
+
+    .mic-section {
+      display: flex; flex-direction: column;
+      align-items: center; gap: 6px;
+      padding: 4px 0 2px;
+    }
+    .mic-ring {
+      position: relative;
+      width: 70px; height: 70px;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .mic-ring::before {
+      content: '';
+      position: absolute; inset: 0;
+      border-radius: 50%;
+      border: 2px solid #888;
+      opacity: 0; transition: opacity 0.2s;
+    }
+    .mic-ring.active::before { opacity: 1; animation: ripple 1s ease-out infinite; }
+    @keyframes ripple {
+      0%  { transform: scale(1);    opacity: 0.8; }
+      100%{ transform: scale(1.6);  opacity: 0; }
+    }
+    .mic-btn {
+      width: 58px; height: 58px; border-radius: 50%;
+      background: var(--black);
+      border: none;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+      transition: transform 0.12s, background 0.15s;
+      outline: none; position: relative; z-index: 1;
+    }
+    .mic-btn:hover { transform: scale(1.07); background: var(--off-black); }
+    .mic-btn.recording { background: #fff; border: 2px solid var(--black); }
+    .mic-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+    .mic-btn svg { width: 24px; height: 24px; fill: #fff; transition: fill 0.15s; }
+    .mic-btn.recording svg { fill: var(--black); }
+    .mic-label {
+      font-family: var(--font-mono); font-size: 11px;
+      color: var(--muted); letter-spacing: 0.05em;
+    }
+    .mic-label.active { color: var(--black); font-weight: 700; }
+
+    .quick-pills { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+    .qpill {
+      padding: 5px 11px; border-radius: 999px;
+      background: var(--bg); border: 1px solid var(--border);
+      font-size: 11px; color: var(--muted); cursor: pointer;
+      font-family: var(--font-mono);
+      transition: background 0.12s, color 0.12s, border-color 0.12s;
+      white-space: nowrap;
+    }
+    .qpill:hover { background: var(--black); color: #fff; border-color: var(--black); }
+
+    .text-row { display: flex; align-items: center; gap: 8px; }
+    .txt-input {
+      flex: 1; height: 38px;
+      border: 1px solid var(--border); border-radius: 999px;
+      padding: 0 14px; font-size: 13px;
+      font-family: var(--font-body);
+      background: var(--bg); color: var(--black);
+      outline: none; transition: border-color 0.15s;
+    }
+    .txt-input:focus { border-color: #999; }
+    .txt-input::placeholder { color: var(--faint); }
+    .send-btn {
+      width: 38px; height: 38px; border-radius: 50%;
+      background: var(--black); border: none;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; transition: background 0.15s, transform 0.12s;
+      flex-shrink: 0;
+    }
+    .send-btn:hover { background: var(--off-black); transform: scale(1.06); }
+    .send-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+    .send-btn svg { width: 15px; height: 15px; fill: #fff; }
+  </style>
+</head>
+<body>
+
+<div class="chat-shell">
+
+  <div class="chat-header">
+    <div class="header-dot"></div>
+    <div class="header-label">
+      mentorra<span class="sep">/</span><span class="slug" id="headerSlug">vincent_forge</span>
+    </div>
+    <select class="mentor-selector" id="mentorPicker">
+      <option value="VF|Vincent Forge|The Impossible Builder|vincent_forge">Vincent Forge</option>
+      <option value="KC|Katerina Catalyst|The Scrappy Disruptor|katerina_catalyst">Katerina Catalyst</option>
+    </select>
+  </div>
+
+  <div class="mentor-bar">
+    <div class="mentor-avatar" id="mAvatar">VF</div>
+    <div>
+      <div class="mentor-name" id="mName">Vincent Forge</div>
+      <div class="mentor-role" id="mRole">The Impossible Builder</div>
+    </div>
+    <div class="status-pill" id="statusPill">● online</div>
+  </div>
+
+  <div class="messages" id="messages">
+    <div class="divider">— session start —</div>
+  </div>
+
+  <div class="input-area" id="inputArea">
+
+    <div class="mic-section">
+      <div class="mic-ring" id="micRing">
+        <button class="mic-btn" id="micBtn" aria-label="Tap to speak">
+          <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+            <rect x="9" y="2" width="6" height="13" rx="3"/>
+            <path d="M5 11a7 7 0 0 0 14 0" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round"/>
+            <line x1="12" y1="18" x2="12" y2="22" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <line x1="9" y1="22" x2="15" y2="22" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </div>
+      <div class="mic-label" id="micLabel">tap to speak</div>
+    </div>
+
+    <div class="quick-pills">
+      <div class="qpill" data-msg="How do I find my ICP?">find my ICP</div>
+      <div class="qpill" data-msg="What's the actual constraint blocking me right now?">core constraint</div>
+      <div class="qpill" data-msg="How do I get my first 10 paying customers?">first customers</div>
+      <div class="qpill" data-msg="Help me prep a pitch deck">pitch deck</div>
+    </div>
+
+    <div class="text-row">
+      <input class="txt-input" id="txtInput" type="text" placeholder="or type a message…" />
+      <button class="send-btn" id="sendBtn" aria-label="Send">
+        <svg viewBox="0 0 16 16"><path d="M2 14 14 8 2 2v4.5l8 1.5-8 1.5z"/></svg>
+      </button>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const API_BASE = "";  // same origin — Vite proxies /api → multi_agent backend
+
+const mentors = {
+  VF: {
+    name: "Vincent Forge",
+    role: "The Impossible Builder",
+    slug: "vincent_forge",
+    welcome: "Hey there, I'm Vincent Forge. Introduce yourself — tell me what you're building and what's blocking you right now.",
+  },
+  KC: {
+    name: "Katerina Catalyst",
+    role: "The Scrappy Disruptor",
+    slug: "katerina_catalyst",
+    welcome: "Hey there, I'm Katerina Catalyst. Introduce yourself — tell me what you're working on and where you're stuck.",
+  },
+};
+
+const SLUG_TO_INIT = {
+  vincent_forge: "VF",
+  katerina_catalyst: "KC",
+};
+
+let sessionId;
+let isLoading = false;
+let isRecording = false;
+let mediaRecorder = null;
+let audioChunks = [];
+let activeAudio = null;
+
+const messagesEl = document.getElementById("messages");
+const txtInput = document.getElementById("txtInput");
+const sendBtn = document.getElementById("sendBtn");
+const micBtn = document.getElementById("micBtn");
+const micRing = document.getElementById("micRing");
+const micLabel = document.getElementById("micLabel");
+const inputArea = document.getElementById("inputArea");
+const mentorPicker = document.getElementById("mentorPicker");
+const statusPill = document.getElementById("statusPill");
+
+function getOrCreateSessionId(forceNew = false) {
+  if (forceNew) {
+    const sid = crypto.randomUUID ? crypto.randomUUID() : `session-${Date.now()}`;
+    localStorage.setItem("mentorra_mentor_chat_session", sid);
+    return sid;
+  }
+
+  let sid = localStorage.getItem("mentorra_mentor_chat_session");
+  if (!sid) {
+    sid = crypto.randomUUID ? crypto.randomUUID() : `session-${Date.now()}`;
+    localStorage.setItem("mentorra_mentor_chat_session", sid);
+  }
+  return sid;
+}
+
+function getMentorFromUrl() {
+  const slug = new URLSearchParams(window.location.search).get("mentor");
+  return slug && SLUG_TO_INIT[slug] ? slug : null;
+}
+
+function now() {
+  const d = new Date();
+  const h = d.getHours();
+  const m = d.getMinutes();
+  const ap = h >= 12 ? "PM" : "AM";
+  const hh = h % 12 || 12;
+  return `${hh}:${m < 10 ? "0" + m : m} ${ap}`;
+}
+
+function escapeHtml(text) {
+  return String(text)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function parsePickerValue(val) {
+  const [init, name, role, slug] = val.split("|");
+  return { init, name, role, slug };
+}
+
+function currentMentor() {
+  return parsePickerValue(mentorPicker.value);
+}
+
+function setLoading(loading) {
+  isLoading = loading;
+  inputArea.classList.toggle("disabled", loading);
+  sendBtn.disabled = loading;
+  micBtn.disabled = loading;
+  statusPill.textContent = loading ? "● thinking" : "● online";
+}
+
+function setBackendError(message) {
+  statusPill.textContent = "● offline";
+  statusPill.classList.add("error");
+  addBubble(message, false, { isError: true });
+}
+
+async function checkBackendHealth() {
+  try {
+    const res = await fetch(`${API_BASE}/health`);
+    if (!res.ok) throw new Error("health check failed");
+    statusPill.textContent = "● online";
+    statusPill.classList.remove("error");
+  } catch {
+    statusPill.textContent = "● offline";
+    statusPill.classList.add("error");
+    addDivider("backend not reachable — start multi_agent.py on port 8001");
+  }
+}
+
+function addDivider(text) {
+  const div = document.createElement("div");
+  div.className = "divider";
+  div.textContent = text;
+  messagesEl.appendChild(div);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+function addBubble(text, isUser, options = {}) {
+  const { init, audioBase64, audioMimeType, isError } = options;
+  const mentorInit = init || currentMentor().init;
+
+  const row = document.createElement("div");
+  row.className = "bubble-row" + (isUser ? " user" : "");
+
+  if (isUser) {
+    row.innerHTML = `
+      <div>
+        <div class="bubble user">${escapeHtml(text)}</div>
+        <div class="bubble-meta">${now()}</div>
+      </div>`;
+  } else {
+    const bubbleClass = isError ? "bubble mentor error" : "bubble mentor";
+    const audioKey = audioBase64 ? `audio-${Date.now()}-${Math.random()}` : "";
+    const speakKey = !audioBase64 && text ? `speak-${Date.now()}-${Math.random()}` : "";
+
+    window.__mentorAudio = window.__mentorAudio || {};
+    window.__mentorSpeak = window.__mentorSpeak || {};
+
+    if (audioBase64) {
+      window.__mentorAudio[audioKey] = { base64: audioBase64, mime: audioMimeType || "audio/mpeg" };
+    } else if (speakKey) {
+      window.__mentorSpeak[speakKey] = text;
+    }
+
+    row.innerHTML = `
+      <div class="bav">${mentorInit}</div>
+      <div>
+        <div class="${bubbleClass}">${escapeHtml(text)}${
+          isError
+            ? ""
+            : audioBase64
+            ? `<div class="audio-pill" data-audio-key="${audioKey}">
+                <svg viewBox="0 0 12 12"><polygon points="2,1 10,6 2,11"/></svg>
+                play message
+              </div>`
+            : `<div class="audio-pill" data-speak-key="${speakKey}">
+                <svg viewBox="0 0 12 12"><polygon points="2,1 10,6 2,11"/></svg>
+                play message
+              </div>`
+        }</div>
+        <div class="bubble-meta">${now()}</div>
+      </div>`;
+  }
+
+  messagesEl.appendChild(row);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+  return row;
+}
+
+function addTyping() {
+  const init = currentMentor().init;
+  const row = document.createElement("div");
+  row.className = "typing-row";
+  row.id = "typingRow";
+  row.innerHTML = `
+    <div class="bav">${init}</div>
+    <div class="typing-bubble"><span></span><span></span><span></span></div>`;
+  messagesEl.appendChild(row);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+function removeTyping() {
+  document.getElementById("typingRow")?.remove();
+}
+
+function updateMentorUI(slug) {
+  const init = SLUG_TO_INIT[slug] || "VF";
+  const m = mentors[init];
+  document.getElementById("mAvatar").textContent = init;
+  document.getElementById("mName").textContent = m.name;
+  document.getElementById("mRole").textContent = m.role;
+  document.getElementById("headerSlug").textContent = slug;
+
+  for (const option of mentorPicker.options) {
+    if (option.value.endsWith(`|${slug}`)) {
+      mentorPicker.value = option.value;
+      break;
+    }
+  }
+}
+
+function syncPickerFromBackend(slug) {
+  if (slug && SLUG_TO_INIT[slug]) {
+    updateMentorUI(slug);
+  }
+}
+
+async function callAssist(payload) {
+  const res = await fetch(`${API_BASE}/api/assist`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    throw new Error(data.detail || `Request failed (${res.status})`);
+  }
+  return data;
+}
+
+async function sendTextMessage(text) {
+  const msg = (text || txtInput.value).trim();
+  if (!msg || isLoading) return;
+
+  txtInput.value = "";
+  addBubble(msg, true);
+  addTyping();
+  setLoading(true);
+
+  const mentor = currentMentor();
+
+  try {
+    const data = await callAssist({
+      session_id: sessionId,
+      mode: "text",
+      mentor_id: mentor.slug,
+      user_message: msg,
+    });
+
+    removeTyping();
+
+    if (data.switched_mentor) {
+      addDivider(`— switched to ${data.mentor_name.toLowerCase()} —`);
+      syncPickerFromBackend(data.active_mentor);
+    }
+
+    const init = SLUG_TO_INIT[data.active_mentor] || mentor.init;
+    addBubble(data.reply, false, { init });
+  } catch (err) {
+    removeTyping();
+    setBackendError(`Error: ${err.message}`);
+  } finally {
+    setLoading(false);
+  }
+}
+
+async function sendVoiceMessage(audioBlob, mimeType) {
+  addTyping();
+  setLoading(true);
+  micLabel.textContent = "transcribing…";
+
+  const mentor = currentMentor();
+
+  try {
+    const audioBase64 = await blobToBase64(audioBlob);
+
+    const data = await callAssist({
+      session_id: sessionId,
+      mode: "voice",
+      mentor_id: mentor.slug,
+      audio_base64: audioBase64,
+      audio_mime_type: mimeType,
+    });
+
+    removeTyping();
+
+    if (data.transcript) {
+      addBubble(data.transcript, true);
+    }
+
+    if (data.switched_mentor) {
+      addDivider(`— switched to ${data.mentor_name.toLowerCase()} —`);
+      syncPickerFromBackend(data.active_mentor);
+    }
+
+    const init = SLUG_TO_INIT[data.active_mentor] || mentor.init;
+    addBubble(data.reply, false, {
+      init,
+      audioBase64: data.audio_base64,
+      audioMimeType: data.audio_mime_type,
+    });
+
+    if (data.audio_base64) {
+      playAudioData(data.audio_base64, data.audio_mime_type || "audio/mpeg");
+    }
+  } catch (err) {
+    removeTyping();
+    setBackendError(`Voice error: ${err.message}`);
+  } finally {
+    setLoading(false);
+    micLabel.textContent = "tap to speak";
+  }
+}
+
+function blobToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(String(reader.result || ""));
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function toggleMic() {
+  if (isLoading) return;
+
+  if (!isRecording) {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setBackendError("Microphone not supported in this browser.");
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaRecorder = new MediaRecorder(stream);
+      audioChunks = [];
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) audioChunks.push(event.data);
+      };
+
+      mediaRecorder.onstop = async () => {
+        const mimeType = mediaRecorder.mimeType || "audio/webm";
+        const blob = new Blob(audioChunks, { type: mimeType });
+        stream.getTracks().forEach((track) => track.stop());
+        await sendVoiceMessage(blob, mimeType);
+      };
+
+      mediaRecorder.start();
+      isRecording = true;
+      micBtn.classList.add("recording");
+      micRing.classList.add("active");
+      micLabel.classList.add("active");
+      micLabel.textContent = "recording… tap to send";
+      micBtn.querySelector("svg").innerHTML = '<rect x="5" y="5" width="14" height="14" rx="2"/>';
+    } catch {
+      setBackendError("Could not access microphone.");
+    }
+    return;
+  }
+
+  isRecording = false;
+  micBtn.classList.remove("recording");
+  micRing.classList.remove("active");
+  micLabel.classList.remove("active");
+  micLabel.textContent = "transcribing…";
+  micBtn.querySelector("svg").innerHTML = `
+    <rect x="9" y="2" width="6" height="13" rx="3"/>
+    <path d="M5 11a7 7 0 0 0 14 0" stroke-width="2" stroke="currentColor" fill="none" stroke-linecap="round"/>
+    <line x1="12" y1="18" x2="12" y2="22" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    <line x1="9" y1="22" x2="15" y2="22" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>`;
+
+  if (mediaRecorder && mediaRecorder.state !== "inactive") {
+    mediaRecorder.stop();
+  }
+}
+
+async function playMentorGreeting(mentorSlug, options = {}) {
+  const { init = SLUG_TO_INIT[mentorSlug] || "VF", autoPlay = true } = options;
+  const fallback = mentors[init]?.welcome || "Hey there — introduce yourself.";
+
+  try {
+    const res = await fetch(`${API_BASE}/api/greeting?mentor_id=${encodeURIComponent(mentorSlug)}`);
+    if (!res.ok) throw new Error("greeting failed");
+    const data = await res.json();
+    addBubble(data.reply, false, {
+      init,
+      audioBase64: data.audio_base64,
+      audioMimeType: data.audio_mime_type,
+    });
+    if (autoPlay && data.audio_base64) {
+      playAudioData(data.audio_base64, data.audio_mime_type || "audio/mpeg");
+    }
+  } catch {
+    addBubble(fallback, false, { init });
+  }
+}
+
+async function switchMentor(val) {
+  const { init, name, slug } = parsePickerValue(val);
+  updateMentorUI(slug);
+  addDivider(`— switched to ${name.toLowerCase()} —`);
+  await playMentorGreeting(slug, { init });
+}
+
+function playAudioData(base64, mimeType) {
+  if (activeAudio) {
+    activeAudio.pause();
+    activeAudio = null;
+  }
+
+  const src = base64.startsWith("data:")
+    ? base64
+    : `data:${mimeType};base64,${base64.includes(",") ? base64.split(",")[1] : base64}`;
+
+  activeAudio = new Audio(src);
+  activeAudio.play().catch(() => {});
+}
+
+async function playPill(el) {
+  const orig = el.innerHTML;
+  el.innerHTML = `<div class="audio-bar"><span></span><span></span><span></span><span></span><span></span></div> playing…`;
+
+  try {
+    const audioKey = el.dataset.audioKey;
+    if (audioKey && window.__mentorAudio?.[audioKey]) {
+      const { base64, mime } = window.__mentorAudio[audioKey];
+      await new Promise((resolve, reject) => {
+        if (activeAudio) activeAudio.pause();
+        activeAudio = new Audio(`data:${mime};base64,${base64}`);
+        activeAudio.onended = resolve;
+        activeAudio.onerror = reject;
+        activeAudio.play().catch(reject);
+      });
+    } else if (el.dataset.speakKey) {
+      const text = window.__mentorSpeak?.[el.dataset.speakKey];
+      if (!text) return;
+      const res = await fetch(`${API_BASE}/api/voice/speak?text=${encodeURIComponent(text)}`, {
+        method: "POST",
+      });
+      if (!res.ok) throw new Error("TTS failed");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      await new Promise((resolve, reject) => {
+        if (activeAudio) activeAudio.pause();
+        activeAudio = new Audio(url);
+        activeAudio.onended = () => { URL.revokeObjectURL(url); resolve(); };
+        activeAudio.onerror = reject;
+        activeAudio.play().catch(reject);
+      });
+    }
+  } catch {
+    // ignore playback errors
+  } finally {
+    el.innerHTML = orig;
+  }
+}
+
+messagesEl.addEventListener("click", (event) => {
+  const pill = event.target.closest(".audio-pill");
+  if (pill) playPill(pill);
+});
+
+sendBtn.addEventListener("click", () => sendTextMessage());
+txtInput.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") sendTextMessage();
+});
+micBtn.addEventListener("click", toggleMic);
+mentorPicker.addEventListener("change", (event) => switchMentor(event.target.value));
+
+document.querySelectorAll(".qpill").forEach((pill) => {
+  pill.addEventListener("click", () => sendTextMessage(pill.dataset.msg));
+});
+
+async function bootChat() {
+  await checkBackendHealth();
+
+  const mentorFromUrl = getMentorFromUrl();
+  const initialSlug = mentorFromUrl || "vincent_forge";
+  const initialInit = SLUG_TO_INIT[initialSlug] || "VF";
+
+  if (mentorFromUrl) {
+    sessionId = getOrCreateSessionId(true);
+  } else {
+    sessionId = getOrCreateSessionId(false);
+  }
+
+  updateMentorUI(initialSlug);
+  await playMentorGreeting(initialSlug, { init: initialInit });
+}
+
+bootChat();
+</script>
+</body>
+</html>
