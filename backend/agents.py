@@ -11,6 +11,7 @@ Run:
 Environment variables:
   OPENAI_API_KEY
   ELEVENLABS_API_KEY
+  TAVILY_API_KEY  (required for Vincent Forge deep search)
 """
 
 from __future__ import annotations
@@ -24,6 +25,7 @@ import threading
 from dataclasses import dataclass, field
 from time import time
 from typing import Any, Dict, List, Literal, Optional, Tuple, Union
+from datetime import datetime
 
 from dotenv import load_dotenv
 from elevenlabs import ElevenLabs
@@ -32,6 +34,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from openai import APIError, OpenAI
 from pydantic import BaseModel, Field
+from prompts import get_vincent_forge_prompt, get_katerina_catalyst_prompt, get_fact_extractor_prompt, get_completeness_checker_prompt, get_mentor_router_prompt
+from tavily_search import run_tavily_deep_search
 
 # ---------------------------------------------------------------------------
 # Env + app setup
@@ -170,102 +174,7 @@ def get_router_session(session_id: str) -> RouterSessionState:
         return state
 
 
-SYSTEM_PROMPT_FACT_EXTRACTOR = """
-You are the Mentorra Router Memory Extractor.
 
-Your job is to update structured routing facts from the user's latest message.
-
-You will receive:
-- existing_router_facts
-- latest_user_message
-- last_question_asked
-- founder_profile
-- memory_context
-
-Update only fields that are clearly answered or strongly implied.
-Do not erase existing facts unless the user explicitly corrects them.
-If the latest answer is vague, preserve previous values.
-
-Required fields:
-- GOAL: What the founder is trying to achieve. What success looks like.
-- MAIN_BARRIER: The main obstacle blocking them right now.
-- DOMAIN: Problem category, such as technical, growth, UX, sales, product, fundraising, hiring, strategy, retail, community.
-- MENTORSHIP_VALUES: What they value in mentorship, such as accountability, tough love, emotional support, tactical frameworks, industry expertise.
-- RISK_PROFILE: Whether they prefer moving fast/taking risks or validating carefully.
-- FEEDBACK_STYLE: What feedback helps them most: direct, encouraging, data-driven, story-based, tactical, Socratic.
-- RESILIENCE_SIGNAL: How they handle setbacks, rejection, or failure.
-- EXPERIENCE_LEVEL: Startup/idea stage, such as idea, pre-seed, seed, growth, scaling, or first-time founder.
-
-Return valid JSON only:
-
-{
-  "updated_facts": {
-    "GOAL": "string or null",
-    "MAIN_BARRIER": "string or null",
-    "DOMAIN": "string or null",
-    "MENTORSHIP_VALUES": "string or null",
-    "RISK_PROFILE": "string or null",
-    "FEEDBACK_STYLE": "string or null",
-    "RESILIENCE_SIGNAL": "string or null",
-    "EXPERIENCE_LEVEL": "string or null"
-  },
-  "memory_update": "brief summary of what changed",
-  "last_answered_field": "one field name or null"
-}
-"""
-
-SYSTEM_PROMPT_COMPLETENESS_CHECKER = """
-You are the Mentorra Router Completeness Checker.
-
-Your job is to inspect accumulated router_facts and ask for the most important missing field.
-
-Return valid JSON only:
-
-{
-  "next_question": "string or null",
-  "confidence_notes": "brief internal reason"
-}
-
-Rules:
-- Ask only ONE question.
-- Do not ask about fields already filled in router_facts.
-- If MAIN_BARRIER is missing, prioritize asking that next.
-- If GOAL is missing, ask about the user's goal.
-- If all fields are complete, next_question must be null.
-"""
-
-SYSTEM_PROMPT_MENTOR_ROUTER = """
-You are the Mentorra Mentor Router.
-
-Given complete founder router_facts, choose the best mentor IDs in ranked order.
-
-Valid mentor IDs:
-- vincent_forge
-- katerina_catalyst
-- sophia_architect
-- adrian_insight
-
-Mentor matching guide:
-
-vincent_forge:
-Best for technical ambition, first-principles thinking, deep tech, hardware, rapid execution, high-risk 10x ideas, blunt feedback.
-
-katerina_catalyst:
-Best for bootstrapping, scrappy sales, customer acquisition, resilience, rejection, limited resources, encouragement plus accountability.
-
-sophia_architect:
-Best for UX, customer experience, brand, trust, marketplaces, community, emotional product design, thoughtful exploratory feedback.
-
-adrian_insight:
-Best for early-stage validation, product-market fit, talking to users, startup fundamentals, pivot decisions, seed-stage strategy.
-
-Return valid JSON only:
-
-{
-  "suggested_agents": ["mentor_id", "..."],
-  "confidence_notes": "brief explanation of the ranking"
-}
-"""
 
 
 def _norm(s: Optional[str]) -> str:
@@ -290,6 +199,9 @@ def coerce_track_to_id(track: Optional[str]) -> Optional[str]:
     if t2 in ROUTER_ALIASES_TO_ID:
         return ROUTER_ALIASES_TO_ID[t2]
     return None
+
+def get_timestamp() -> str:
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
 def normalize_suggested_agents(val: Any) -> List[str]:
@@ -422,7 +334,7 @@ def run_router(request: UnifiedAssistRequest, effective_user_message: str) -> Di
     }, indent=2)
 
     extraction_data = call_json_llm(
-        system_prompt=SYSTEM_PROMPT_FACT_EXTRACTOR,
+        system_prompt=get_fact_extractor_prompt(),
         user_payload=extraction_input,
         temperature=0.1,
     )
@@ -446,7 +358,7 @@ def run_router(request: UnifiedAssistRequest, effective_user_message: str) -> Di
         }, indent=2)
 
         completeness_data = call_json_llm(
-            system_prompt=SYSTEM_PROMPT_COMPLETENESS_CHECKER,
+            system_prompt=get_completeness_checker_prompt(),
             user_payload=completeness_input,
             temperature=0.1,
         )
@@ -490,7 +402,7 @@ def run_router(request: UnifiedAssistRequest, effective_user_message: str) -> Di
     }, indent=2)
 
     routing_data = call_json_llm(
-        system_prompt=SYSTEM_PROMPT_MENTOR_ROUTER,
+        system_prompt=get_mentor_router_prompt(),
         user_payload=routing_input,
         temperature=0.1,
     )
@@ -598,60 +510,40 @@ class GreetingResponse(BaseModel):
     audio_mime_type: Optional[str] = None
 
 
-SYSTEM_PROMPT_VINCENT_FORGE = """
-You are Vincent Forge — The Impossible Builder.
-
-Tagline: Make the impossible inevitable through first principles and relentless execution.
-
-Philosophy:
-Most limits are stacked assumptions. If physics allows it, it can be engineered.
-Break problems to first principles, aim for 10x breakthroughs, and move fast.
-Speed of execution beats perfection. Build things that matter.
-
-Best for:
-Moonshots, first-principles problem solving, rapid iteration, scaling hard systems,
-technical ambition, deep tech, hardware, high-risk bold bets.
-
-Style:
-Direct, intense, impatient with excuses. Cut through noise and push toward action.
-
-Signature question: "What's the actual constraint here?"
-
-Rules:
-- Stay in character as Vincent Forge.
-- Give concrete, decisive guidance — not generic motivational fluff.
-- End with one sharp question or one immediate action for this week when helpful.
-- Do not mention you are an AI or a language model.
-""".strip()
-
-SYSTEM_PROMPT_KATERINA_CATALYST = """
-You are Katerina Catalyst — The Scrappy Disruptor.
-
-Tagline: Turn your struggles into your advantage — bootstrap, hustle, believe.
-
-Philosophy:
-Great businesses come from personal pain points. Constraints create creativity.
-Start scrappy, sell early, learn from rejection, and turn setbacks into fuel.
-
-Best for:
-Bootstrapping, first customers, sales confidence, pricing conversations,
-resilience through rejection, limited resources, encouragement plus accountability.
-
-Style:
-Warm, encouraging, real — push the founder without shaming them.
-
-Signature question: "What would make YOU buy this?"
-
-Rules:
-- Stay in character as Katerina Catalyst.
-- Focus on practical next steps the founder can do this week with limited budget.
-- Acknowledge emotional reality, then redirect to action.
-- Do not mention you are an AI or a language model.
-""".strip()
-
 SYSTEM_PROMPTS: Dict[MentorId, str] = {
-    "vincent_forge": SYSTEM_PROMPT_VINCENT_FORGE,
-    "katerina_catalyst": SYSTEM_PROMPT_KATERINA_CATALYST,
+    "vincent_forge": get_vincent_forge_prompt(),
+    "katerina_catalyst": get_katerina_catalyst_prompt(),
+}
+
+TOOL_TAVILY_DEEP_SEARCH = {
+    "type": "function",
+    "function": {
+        "name": "tavily_deep_search",
+        "description": (
+            "Run Tavily deep (advanced) web search for structured information, current facts, "
+            "step-by-step instructions, frameworks, benchmarks, or plan-building research. "
+            "Use whenever the founder needs concrete external knowledge or a new plan."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "query": {
+                    "type": "string",
+                    "description": "Focused search query (keep under 400 characters).",
+                },
+                "context": {
+                    "type": "string",
+                    "description": "Optional founder context: stage, product, market, constraint.",
+                },
+                "topic": {
+                    "type": "string",
+                    "enum": ["general", "news", "finance"],
+                    "description": "Search topic category.",
+                },
+            },
+            "required": ["query"],
+        },
+    },
 }
 
 TOOL_SWITCH_MENTOR = {
@@ -681,7 +573,7 @@ TOOL_SWITCH_MENTOR = {
 }
 
 TOOLS_BY_MENTOR: Dict[MentorId, List[Dict[str, Any]]] = {
-    "vincent_forge": [TOOL_SWITCH_MENTOR],
+    "vincent_forge": [TOOL_TAVILY_DEEP_SEARCH, TOOL_SWITCH_MENTOR],
     "katerina_catalyst": [TOOL_SWITCH_MENTOR],
 }
 
@@ -793,7 +685,14 @@ def execute_tool_call(
 ) -> Any:
     mentor = session.active_mentor
 
-    if tool_name == "switch_mentor":
+    if tool_name == "tavily_deep_search":
+        print(f"Running tavily_deep_search with arguments: {arguments}")
+        result = run_tavily_deep_search(
+            query=str(arguments.get("query", "")),
+            context=arguments.get("context"),
+            topic=str(arguments.get("topic") or "general"),
+        )
+    elif tool_name == "switch_mentor":
         result = execute_switch_mentor(
             session=session,
             mentor_id=str(arguments.get("mentor_id", "")),
@@ -814,7 +713,7 @@ def execute_tool_call(
 
 
 def run_mentor_turn(session: MentorSessionState, user_message: str) -> Dict[str, Any]:
-    session.messages.append({"role": "user", "content": user_message})
+    session.messages.append({"role": "user", "content": f"Time message received (format: YYYY-MM-DD HH:MM:SS): {get_timestamp()}  {user_message}"})
 
     trace: List[ToolTraceEntry] = []
     switched_mentor: Optional[MentorId] = None
@@ -933,25 +832,67 @@ def decode_audio_to_bytes(audio_base64: str) -> bytes:
         raise HTTPException(status_code=400, detail=f"Invalid base64 audio payload: {exc}")
 
 
+import mimetypes
+from typing import Optional
+
 def guess_audio_filename(mime_type: Optional[str], filename: Optional[str]) -> str:
+    print(f"Mime type: {mime_type}")
+    print(f"Filename: {filename}")
+    
     if filename:
         return filename
+
+    # Normalize: strip whitespace, lowercase, and drop everything after ';'
+    clean_mime = (mime_type or "").split(";")[0].strip().lower()
+
+    # Custom mapping for non-standard / audio-specific overrides
     mapping = {
+        # WebM
         "audio/webm": "audio.webm",
+        "video/webm": "audio.webm",  # Audio-only WebM stream labeled as video
+        
+        # WAV
         "audio/wav": "audio.wav",
         "audio/x-wav": "audio.wav",
+        "audio/wave": "audio.wav",
+        
+        # MP3
         "audio/mpeg": "audio.mp3",
         "audio/mp3": "audio.mp3",
+        "audio/x-mpeg": "audio.mp3",
+        
+        # MP4 / M4A
         "audio/mp4": "audio.mp4",
+        "audio/m4a": "audio.m4a",
+        "audio/x-m4a": "audio.m4a",
+        
+        # AAC
         "audio/aac": "audio.aac",
+        "audio/x-aac": "audio.aac",
+        
+        # OGG / Opus / FLAC
         "audio/ogg": "audio.ogg",
+        "audio/oga": "audio.ogg",
+        "audio/opus": "audio.opus",
+        "application/ogg": "audio.ogg",
+        "audio/flac": "audio.flac",
+        "audio/x-flac": "audio.flac",
     }
-    return mapping.get((mime_type or "").lower(), "audio/webm")
 
+    if clean_mime in mapping:
+        return mapping[clean_mime]
+
+    # Fall back to standard library extension guessing before the default
+    ext = mimetypes.guess_extension(clean_mime)
+    if ext:
+        return f"audio{ext}"
+
+    return "audio.webm"
 
 def transcribe_audio_bytes_with_openai(audio_bytes: bytes, filename: str) -> str:
     audio_file = io.BytesIO(audio_bytes)
     audio_file.name = filename
+    print(f"Audio file: {audio_file.name}")
     transcript = openai_client.audio.transcriptions.create(
         model="whisper-1",
         file=audio_file,
