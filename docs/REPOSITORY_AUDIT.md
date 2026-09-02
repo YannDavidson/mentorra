@@ -1,14 +1,14 @@
 # Mentorra Repository Audit
 
-This audit captures what is actually present in the hackathon repository before any structural refactor. The goal is to distinguish active product logic from experiments, generated artifacts, and incomplete scaffolding.
+This audit captures what is actually present in the hackathon repository before structural refactoring. The goal is to distinguish active product logic from experiments, generated artifacts, and incomplete scaffolding.
 
 ## Executive summary
 
 Mentorra is not just a static hackathon mockup. The repository contains a meaningful prototype of an AI decision boardroom for founders, including a router, mentor sessions, mentor switching, voice handling, external research hooks, and multiple UI prototypes.
 
-However, the repository is **not currently reproducible from a fresh clone**. Some imports required by the unified backend are missing from source control, there is no authoritative Python dependency file, and several frontend paths overlap or represent abandoned scaffolding.
+Phase 2 restores the missing backend runtime layer that previously prevented `backend/agents.py` from resolving its prompt and Tavily imports. The branch now contains a versioned runtime prompt package, a Tavily adapter, a Python dependency manifest, and an offline `/health` smoke test.
 
-The immediate priority should be restoration and consolidation before a large-scale folder move.
+The remaining work before structural refactoring is validation and consolidation rather than reconstruction of missing runtime modules. Exact dependency versions are not pinned yet, and the frontend still contains overlapping prototypes and starter scaffolding.
 
 ## Canonical backend candidate
 
@@ -35,7 +35,7 @@ The current FastAPI surface includes:
 
 ### Implemented backend capabilities
 
-The file currently contains:
+The backend currently contains:
 
 - FastAPI application setup
 - founder-profile and router request models
@@ -67,11 +67,7 @@ The one-on-one chat implementation currently supports only:
 
 That mismatch is important. It means the routing layer is conceptually ahead of the implemented interactive mentor layer.
 
-## Backend blockers
-
-A fresh checkout cannot currently run `backend/agents.py` as committed.
-
-### Missing source modules
+## Phase 2 runtime restoration
 
 `agents.py` imports:
 
@@ -86,38 +82,27 @@ from prompts import (
 from tavily_search import run_tavily_deep_search
 ```
 
-No committed `prompts.py` or `tavily_search.py` exists in the repository.
+Those imports are now satisfied by runtime code under `backend/`:
 
-The top-level `prompts/` directory contains Prompt-Driven Development artifacts, but it is not the Python module expected by this import statement.
+- `backend/prompts/__init__.py`
+- `backend/prompts/mentors.py`
+- `backend/prompts/routing.py`
+- `backend/tavily_search.py`
 
-### Missing reproducible environment
+The prompt functions were restored from the repository's pre-extraction history rather than recreated from scratch. The repository-level `prompts/` directory remains PDD/development provenance and is not used as the production runtime package.
 
-The backend uses at least:
+The backend dependency manifest is now `backend/requirements.txt`. It captures the libraries imported by the unified backend and the smoke test, but versions are intentionally not pinned in this restoration pass, so deterministic dependency locking remains future work.
 
-- FastAPI
-- Uvicorn
-- python-dotenv
-- OpenAI Python SDK
-- ElevenLabs Python SDK
-- Pydantic
-- Tavily integration code
-
-`backend/vincent_forge.py` additionally uses:
-
-- websocket-client
-- PyAudio
-
-There is currently no authoritative `requirements.txt` or `pyproject.toml`, so dependency versions cannot be reliably reconstructed.
-
-### Stale backend README
-
-`backend/README.md` instructs contributors to run `backend/multi_agent.py`, but that file is not present. The actual unified entry point appears to be:
+The offline smoke path is:
 
 ```bash
-python backend/agents.py
+python -m pip install -r backend/requirements.txt
+python -m pytest -q backend/tests/test_health.py
 ```
 
-This should be corrected only after the missing modules are restored or recreated.
+The smoke test sets local dummy OpenAI and ElevenLabs credentials, imports `backend/agents.py`, verifies that `/health` is registered, and invokes the route without making external API calls. This makes the test useful as an import/runtime wiring check for the restored prompt and Tavily modules as well as the FastAPI application.
+
+A least-privilege GitHub Actions workflow has also been added for the smoke path. It uses `contents: read`, no repository secrets, and pinned action commit SHAs.
 
 ## `backend/vincent_forge.py`
 
@@ -162,56 +147,60 @@ Because `site/` has the widest product surface, it should be treated as the **ca
 
 ## Prompt lineage
 
-The top-level `prompts/` directory should be treated primarily as **development provenance**, not runtime prompt code.
+The top-level `prompts/` directory is **development provenance**, not runtime prompt code.
 
-It includes several generations of backend and linking prompts, including router iterations and PDD state/core dumps. These files are useful because they document how the hackathon implementation evolved, but they should not remain mixed indefinitely with the runtime prompt package.
+It includes several generations of backend and linking prompts, including router iterations and PDD state/core dumps. These files remain useful because they document how the hackathon implementation evolved.
 
-Recommended future separation:
+The production runtime prompt layer is now:
 
 ```text
-prompts/
-  runtime/        # prompts actually imported by the application
-  specs/          # behavioral / prompt specifications
-  history/        # hackathon/PDD generations and old revisions
+backend/
+  prompts/
+    __init__.py
+    mentors.py
+    routing.py
 ```
 
-Do not perform this move until the missing runtime prompt functions have been reconstructed and tested.
+A later archival cleanup may reorganize the top-level PDD artifacts into `specs/` and `history/`, but that should not be coupled to runtime behavior.
 
 ## Canonical-component decision
 
 For the next phase, use the following hierarchy:
 
 1. **Canonical backend:** `backend/agents.py`
-2. **Canonical UX reference:** `site/`
-3. **Canonical interactive mentor prototype:** `frontend/mentorra-ui/mentor_chat.html`
-4. **Development scaffolding:** `frontend/mentorra-ui` Vite package
-5. **Experimental voice client:** `backend/vincent_forge.py`
-6. **Prompt provenance:** top-level `prompts/`
-7. **Prototype/test artifacts:** standalone HTML files pending comparison
+2. **Runtime prompt layer:** `backend/prompts/`
+3. **Canonical UX reference:** `site/`
+4. **Canonical interactive mentor prototype:** `frontend/mentorra-ui/mentor_chat.html`
+5. **Development scaffolding:** `frontend/mentorra-ui` Vite package
+6. **Experimental voice client:** `backend/vincent_forge.py`
+7. **Prompt provenance:** top-level `prompts/`
+8. **Prototype/test artifacts:** standalone HTML files pending comparison
 
 ## Recommended refactor sequence
 
 ### Phase 1 — repository hygiene
 
-Already started in the normalization PR:
+Completed on the normalization branch:
 
 - accurate root README
 - standard `.gitignore`
-- remove committed generated artifacts
+- removal of committed generated artifacts
 - license and contribution docs
 - architecture documentation
+- environment variable template
 
-### Phase 2 — restore reproducibility
+### Phase 2 — restore runtime wiring
 
-Before moving runtime files:
+Implemented on the runtime-restoration branch:
 
-1. reconstruct or recover the missing runtime `prompts` module
-2. reconstruct or recover `tavily_search.py`
-3. create an authoritative Python dependency manifest
-4. create `.env.example` with variable names only
-5. update `backend/README.md` with verified run commands
-6. perform a clean-clone startup test
-7. add a minimal backend smoke test for `/health`
+1. restore the runtime prompt package
+2. restore `tavily_search.py`
+3. add `backend/requirements.txt`
+4. document the verified run and test commands
+5. add an offline `/health` smoke test
+6. add a least-privilege backend smoke workflow
+
+Before merge, obtain a real smoke-test execution signal and review the exact head SHA.
 
 ### Phase 3 — consolidate the frontend
 
@@ -223,7 +212,7 @@ Before moving runtime files:
 
 ### Phase 4 — normalize runtime architecture
 
-Only after Phases 2 and 3 are green, move toward something like:
+Only after Phase 2 validation and Phase 3 consolidation are green, move toward something like:
 
 ```text
 backend/
