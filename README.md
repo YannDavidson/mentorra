@@ -1,203 +1,124 @@
-# Mentorra — The AI Founder Boardroom
+# Mentorra
 
-**Mentorra** is a **prompt-native AI boardroom** that gives founders world-class guidance and a concrete **30-day execution plan**.  
-Instead of generic chat advice, Mentorra assembles expert AI mentor agents that collaborate, resolve tradeoffs, and turn strategy into action.
+**Mentorra is an AI decision boardroom for founders.** It brings multiple specialized AI mentor perspectives into one structured decision process so founders can move from uncertainty and conflicting advice to a clear, prioritized course of action.
 
-> Prompts are the source of truth. Intelligence is regenerable.
+Mentorra began as a hackathon prototype built in Palo Alto in January 2026. The repository preserves that prototype while serving as the foundation for continued development.
 
----
+## Why Mentorra
 
-## 🚀 Why Mentorra
+Founders rarely suffer from a shortage of information. They suffer from fragmented advice, unresolved tradeoffs, limited access to experienced mentors, and difficulty turning strategic thinking into execution.
 
-Founders don’t fail because they lack tools.  
-They fail because they lack **judgment, clarity, and prioritization**.
+Mentorra is designed around a different interaction model from a single AI chat. A founder provides context once, a routing layer selects relevant mentor perspectives, specialized agents reason independently, and a synthesis layer reconciles their recommendations into one actionable output.
 
-Most AI tools:
-- Provide generic advice
-- Don’t resolve conflicting guidance
-- Aren’t grounded in real-world evidence
-- Don’t convert thinking into execution
+## Core concept
 
-Mentorra fixes this by simulating a **real founder boardroom** — on demand.
+```text
+Founder context
+      ↓
+Decision / routing layer
+      ↓
+Specialized mentor agents
+      ↓
+Independent perspectives
+      ↓
+Synthesis and tradeoff resolution
+      ↓
+Prioritized founder decision / execution plan
+```
 
----
+The long-term idea is a persistent **decision boardroom**: a place where founders can bring consequential questions, compare expert viewpoints, inspect the reasoning behind recommendations, and maintain continuity across decisions over time.
 
-## 🧠 What Mentorra Does
+## Current prototype
 
-Mentorra:
-1. Collects a founder’s context (idea, stage, constraints)
-2. Selects the right AI mentors using a router agent
-3. Runs mentors in parallel for independent judgment
-4. Synthesizes everything into a **single, decisive 30-day plan**
-5. (Optional) Grounds decisions with live competitor and pricing data
-6. (Optional) Delivers advice and plans via **high-quality voice mentors**
+This repository contains the original hackathon implementation and later experiments. It currently includes:
 
----
+- Python-based mentor and orchestration logic
+- Prompt-development artifacts used to shape agent behavior
+- Static HTML interface experiments and demo pages
+- A larger `site/` prototype containing boardroom and mentor views
+- Early work on deeper search / external grounding
 
-## 🎙️ Voice Mentors (Optional)
+The project is still prototype-stage. Some folders represent experiments rather than a single production application, and the repository is being normalized incrementally without discarding the original hackathon work.
 
-Mentorra supports **voice delivery** of mentor insights and final plans using ElevenLabs.
+## Repository structure
 
-Why voice?
-- Feels like a private call with a trusted mentor
-- Conveys urgency, confidence, and nuance
-- Enables listening while walking or driving
+```text
+mentorrahackaton/
+├── backend/            # Python agent and mentor logic
+├── frontend/           # Frontend and HTML prototype experiments
+├── prompts/            # Prompt-driven development artifacts
+├── site/               # Broader static site / boardroom prototype
+├── docs/               # Product and architecture documentation
+├── .gitignore
+├── CONTRIBUTING.md
+├── LICENSE
+└── README.md
+```
 
----
+### `backend/`
+Contains the Python implementation of Mentorra's mentor agents and orchestration experiments.
 
-## 🧩 Architecture Overview
+### `frontend/`
+Contains early interface prototypes and the evolving Mentorra UI implementation.
 
-Mentorra is built using **Prompt-Driven Development (PDD)**.
+### `prompts/`
+Contains prompt artifacts produced during prompt-driven development. These files document how parts of the prototype were generated and refined and should be treated as part of the project's development history.
 
-### Core Pipeline
-Founder Intake
-↓
-Router Agent
-↓
-Mentor Agents (parallel)
-↓
-Synthesis Agent
-↓
-30-Day Execution Plan
+### `site/`
+Contains the larger static prototype used to explore boardrooms, individual mentor experiences, and demo flows.
 
-### Key Principles
-- Prompts define behavior
-- Code is a regenerable artifact
-- Tests accumulate and prevent regressions
-- Changes happen at the prompt level, not via patching
+## Mentor model
 
----
+Mentorra's AI mentors are fictional, pattern-based strategic personas rather than impersonations of real people. The prototype includes perspectives such as:
 
-## 🤖 AI Mentor Agents
+- **Adrian Insight** — focus, product-market fit, and startup fundamentals
+- **Katerina Catalyst** — revenue, sales, pricing, and founder resilience
+- **Sophia Architect** — product experience, trust, narrative, and differentiation
+- **Vincent Forge** — ambitious execution and difficult-builder problems
 
-Mentors are **pattern-based personas**, not impersonations.
+A mentor can produce a structured perspective that includes diagnosis, key insight, likely mistakes, recommended action, and immediate next steps. The boardroom layer can then synthesize those perspectives rather than forcing the founder to reconcile multiple independent AI conversations manually.
 
-Initial set:
-- **Adrian Insight** — startup fundamentals, PMF, focus
-- **Katerina Catalyst** — first revenue, sales, pricing, resilience
-- **Sophia Architect** — experience, trust, narrative, differentiation
-- **Vincent Forge** — startup fundamentals, The Impossible Builder
+## Product direction
 
-Mentors produce structured briefs with:
-1. Diagnosis  
-2. Key Insight  
-3. What You’re Likely Doing Wrong  
-4. What You Should Do Instead  
-5. Immediate Action (This Week)
+The prototype started with a simple question:
 
----
+> What if every founder could convene a high-quality advisory board whenever an important decision had to be made?
 
-## 🌍 Real-World Grounding (Proof Pack)
+The product can evolve beyond one-shot mentorship into infrastructure for founder decision-making, including:
 
-Mentorra can pull live market data using **Rtrvr.ai**:
-- Competitors
-- Pricing models
-- Positioning language
-- Source URLs
+- persistent company and founder context
+- decision history and institutional memory
+- configurable boardrooms for different problem types
+- evidence and market grounding
+- explicit disagreement and tradeoff resolution between agents
+- decision records and follow-through
+- recurring strategic reviews
+- specialized boardrooms for fundraising, product, hiring, go-to-market, finance, and operations
 
-This **Proof Pack** is injected into synthesis so plans reflect real market conditions.
+## Development status
 
----
+Mentorra is an early-stage prototype under active reorganization. The current priority is to preserve what was built during the hackathon while turning the repository into a clean base for continued engineering.
 
-## 🛠️ Tech Stack
+The normalization work includes clearer documentation, conventional repository hygiene, removal of generated artifacts from version control, and separation between historical experiments and the eventual production application.
 
-- **Frontend:** Next.js (App Router), HTML, plain CSS
-- **Backend:** Node.js API routes
-- **AI Models:** LLM-based (router, mentors, synthesis)
-- **Web Retrieval:** Rtrvr.ai
-- **Voice:** ElevenLabs
-- **Methodology:** Prompt-Driven Development (PDD)
+## Running the project
 
----
+The repository does not yet expose a single canonical production setup command. Different parts of the hackathon prototype were built independently.
 
-## 📁 Repository Structure
+Until the application is consolidated, inspect the README or source files inside the relevant folder before running an individual component. A reproducible local development workflow will be added as the frontend and backend are normalized.
 
-/app
-/boardroom
-page.tsx
-/components
-FounderIntakeForm.tsx
-MentorCards.tsx
-SynthesisPlan.tsx
-ProofPackButton.tsx
-/prompts
-router.prompt
-mentor_adrian.prompt
-mentor_helena.prompt
-mentor_sophia.prompt
-synthesis.prompt
-/lib
-proofPackToSynthesis.ts
-/tests
-router.test.ts
-mentor_format.test.ts
-synthesis_format.test.ts
+## Contributing
+
+Contributions, technical feedback, architecture suggestions, and product discussion are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request.
+
+## Origin
+
+Mentorra was created during a Palo Alto hackathon in January 2026 as an experiment in multi-agent founder mentorship and decision support. The hackathon repository is intentionally being evolved rather than replaced so the project's technical and product history remains visible.
+
+## License
+
+This repository is licensed under the MIT License. See [LICENSE](LICENSE).
 
 ---
 
-## 🧪 Testing & Reliability
-
-Mentorra uses **test accumulation** to ensure stability:
-- Router JSON schema validation
-- Mentor output structure tests
-- Synthesis heading and format tests
-- Proof Pack injection regression tests
-
-These tests act as **“mold walls”** that prevent bugs from reappearing after regeneration.
-
----
-
-## 🏆 Hackathon Focus
-
-For the hackathon, we intentionally:
-- Avoid auth and payments
-- Optimize for clarity and demo impact
-- Emphasize PDD rigor and agent orchestration
-- Showcase real-world grounding and voice delivery
-
----
-
-## 👥 Who This Is For
-
-- Early-stage founders
-- Builders exploring PDD and agentic systems
-- Accelerators and incubators
-- Investors interested in AI-native products
-
----
-
-## 🤝 Contributing
-
-We welcome contributors in:
-- Frontend (UI polish)
-- Backend (orchestration, reliability)
-- Agent logic (prompt tuning, tests)
-- Demo & pitch storytelling
-
-Open an issue or jump into the discussion.
-
----
-
-## 📌 Vision
-
-Mentorra starts with founders — and expands to:
-- Executives
-- Product leaders
-- Creators
-- Career transitions
-- High-stakes decision-making
-
-> The future won’t be built by people thinking alone.
-
----
-
-## 📫 Contact
-For questions, demos, or collaboration:
-- Open an issue.
-- Reach out via the hackathon Discord
-
----
-
-**Mentorra**  
-*World-class mentorship. Regenerable intelligence. Real execution.*
-# mentorrahackaton
+**Mentorra — an AI decision boardroom for founders.**
