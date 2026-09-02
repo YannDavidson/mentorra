@@ -6,24 +6,39 @@ It is a FastAPI service that combines founder intake / mentor routing with one-o
 
 ## Current status
 
-The backend is **not yet reproducible from a fresh clone** because two runtime modules imported by `agents.py` are not currently committed:
+Phase 2 restores the runtime modules required by `agents.py`:
 
-- `prompts` — expected to provide runtime prompt functions
-- `tavily_search` — expected to provide `run_tavily_deep_search`
+- `backend/prompts/` — versioned production prompt functions
+- `backend/tavily_search.py` — Tavily deep-search adapter
+- `backend/requirements.txt` — backend Python dependency manifest
+- `backend/tests/test_health.py` — offline `/health` smoke test
 
-There is also no authoritative Python dependency manifest yet.
+The repository-level `prompts/` directory remains historical PDD/development provenance and is not the production runtime prompt layer.
 
 Do not use the previous instruction to run `backend/multi_agent.py`; that file is not present in the repository.
 
-## Intended entry point
+## Run locally
 
-Once the missing runtime modules and dependency manifest are restored, the service is intended to run with:
+Create an environment, install the backend dependencies, and start the service:
 
 ```bash
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
+python -m pip install -r backend/requirements.txt
 python backend/agents.py
 ```
 
 The default port is `8000`, configurable through `PORT`.
+
+## Smoke test
+
+Run the offline backend health check with:
+
+```bash
+python -m pytest -q backend/tests/test_health.py
+```
+
+The smoke test uses local dummy credentials and must not call OpenAI, ElevenLabs, or Tavily.
 
 ## Main API surface
 
@@ -43,4 +58,4 @@ See the repository-level `.env.example` for the known variable names. Never comm
 
 ## Audit
 
-See [`../docs/REPOSITORY_AUDIT.md`](../docs/REPOSITORY_AUDIT.md) for the current component inventory, known blockers, and recommended refactor sequence.
+See [`../docs/REPOSITORY_AUDIT.md`](../docs/REPOSITORY_AUDIT.md) for the component inventory, remaining limitations, and recommended refactor sequence.
