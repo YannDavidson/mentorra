@@ -3,5 +3,6 @@ uvicorn
 python-dotenv
 openai
 elevenlabs
+websocket-client
 pydantic
 pytest

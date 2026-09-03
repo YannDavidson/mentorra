@@ -3,7 +3,7 @@ name: Backend smoke test
 on:
   push:
     branches:
-      - "fix/runtime-prompt-layer"
+      - main
     paths:
       - "backend/**"
       - ".github/workflows/backend-smoke.yml"
@@ -32,5 +32,8 @@ jobs:
       - name: Install backend dependencies
         run: python -m pip install -r backend/requirements.txt
 
-      - name: Run backend smoke test
-        run: python -m pytest -q backend/tests/test_health.py
+      - name: Run backend smoke and boardroom contract tests
+        env:
+          OPENAI_API_KEY: test-openai-key
+          ELEVENLABS_API_KEY: test-elevenlabs-key
+        run: python -m pytest -q backend/tests/test_health.py backend/tests/test_elevenlabs_runtime.py
