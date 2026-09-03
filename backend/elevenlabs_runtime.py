@@ -15,10 +15,12 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List, Optional
+from urllib.parse import urlencode
+from urllib.request import Request, urlopen
 
 import websocket
 
-ELEVENLABS_CONVERSATION_URL = "wss://api.elevenlabs.io/v1/convai/conversation"
+ELEVENLABS_SIGNED_URL_ENDPOINT = "https://api.elevenlabs.io/v1/convai/conversation/get-signed-url"
 DEFAULT_TIMEOUT_SECONDS = 45
 
 
@@ -95,11 +97,29 @@ def format_shared_context(session: BoardroomSession, max_entries: int = 24) -> s
 
 
 class ElevenLabsTextTransport:
-    """One-turn text transport for an ElevenLabs Agent conversation."""
+    """One-turn authenticated text transport for an ElevenLabs Agent conversation."""
 
     def __init__(self, api_key: str, timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS):
         self.api_key = api_key
         self.timeout_seconds = timeout_seconds
+
+    def _get_signed_url(self, agent_id: str) -> str:
+        query = urlencode({"agent_id": agent_id})
+        request = Request(
+            f"{ELEVENLABS_SIGNED_URL_ENDPOINT}?{query}",
+            headers={"xi-api-key": self.api_key},
+            method="GET",
+        )
+        try:
+            with urlopen(request, timeout=15) as response:
+                payload = json.loads(response.read().decode("utf-8"))
+        except Exception as exc:
+            raise ElevenLabsRuntimeError(f"Unable to obtain ElevenLabs signed URL: {exc}") from exc
+
+        signed_url = (payload.get("signed_url") or "").strip()
+        if not signed_url:
+            raise ElevenLabsRuntimeError("ElevenLabs signed URL response was empty")
+        return signed_url
 
     def invoke(self, agent_id: str, user_message: str, context: str) -> str:
         if not self.api_key:
@@ -112,8 +132,7 @@ class ElevenLabsTextTransport:
         response_text: Dict[str, Optional[str]] = {"value": None}
         failure: Dict[str, Optional[str]] = {"value": None}
         finished = threading.Event()
-
-        url = f"{ELEVENLABS_CONVERSATION_URL}?agent_id={agent_id}"
+        signed_url = self._get_signed_url(agent_id)
 
         def on_open(ws: websocket.WebSocketApp) -> None:
             ws.send(json.dumps({"type": "conversation_initiation_client_data"}))
@@ -157,8 +176,7 @@ class ElevenLabsTextTransport:
             finished.set()
 
         ws = websocket.WebSocketApp(
-            url,
-            header=[f"xi-api-key: {self.api_key}"],
+            signed_url,
             on_open=on_open,
             on_message=on_message,
             on_error=on_error,
